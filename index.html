@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Node.js Chat</title>
+<script src="/socket.io/socket.io.js" type="text/javascript"></script>
+<script
+	src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
+	type="text/javascript"></script>
+<script>
+/* This is the client side chat interface */
+var Talk = {
+
+    // Constants
+    MAXMESSAGES: 250, // before it starts "cleaning out"
+
+    // User variables
+    username: null,
+    socket: null,
+
+    // Send a new chat message to the server
+    chat: function(message) {
+        if (message.replace(/^\s+|\s+$/, "") == "")
+            return;
+        var data = { command: "chat",
+                     message: message };
+
+        Talk.send(data);
+    },
+
+    // Send a final data structure to the socket
+    send: function(data) {
+        Talk.socket.send(JSON.stringify(data));
+    },
+
+    // Upon initial connection, request a name
+    connect: function() {
+        Talk.name();
+    },
+
+    // Let the user know when he / she has disconnected
+    // and empty the user list
+    disconnect: function() {
+        Talk.commands.error({ message: "You have disconnected."});
+        var users = $("#users");
+        users.empty();
+    },
+
+    // Prompt for name and send it.
+    name: function(msg) {
+        if (!msg)
+            msg = "What's your name?"
+        Talk.username = prompt(msg);
+        Talk.send({ command: "name", name: Talk.username });
+        $("#message").focus();
+    },
+
+    // Get list of users for current room
+    users: function() {
+        Talk.send({ command: "users" });
+    },
+
+    // Receive a message from the server and parse it
+    receive: function(dataString) {
+        var data = JSON.parse(dataString);
+        if (Talk.commands.hasOwnProperty(data.command)) {
+            Talk.commands[data.command](data);
+        } else {
+            Talk.commands.error({ message: "Unknown command "+data.command });
+        }
+    },
+
+    // Tell the server (nicely) that we're leaving
+    quit: function() {
+        Talk.send({ command: "quit" });
+    },
+
+    // The server response commands
+    commands: {
+        
+        // A user is inactive
+        away: function(data) {
+            var awaySpan = $("<span class='away'></span>");
+            awaySpan.text(data.name+" is away.");
+            Talk.addEntry(awaySpan);
+            Talk.users();
+        },
+
+        // A user broadcasted the room
+        broadcast: function(data) {
+            var prefix = data.name;
+            var msgSpan = $("<span class='message'></span>");
+            var message = prefix+": "+data.message;
+            msgSpan.text(message);
+            var li = Talk.addEntry(msgSpan);
+            if (data.message.search(new RegExp(Talk.username, 'i'), "") >= 0)
+                li.addClass("you");
+            var uel = $("#user-"+data.name);
+            uel.removeClass("away");
+            uel.addClass("active");
+        },
+
+        // A new user joined the room
+        join: function(data) {
+            var message = data.name+" joined the channel.";
+            var joinSpan = $("<span class='join'></span>");
+            joinSpan.text(message);
+            Talk.addEntry(joinSpan);
+            if (data.name == Talk.username) {
+                // it's YOU!
+                var button = $("#send");
+                var sendMessage = function(e) {
+                    var msg = $("#message");
+                    Talk.chat(msg.val());
+                    msg.val("");
+                }
+                button.unbind("click");
+                button.click(sendMessage);
+                var messageEl = $("#message");
+                messageEl.unbind("keyup");
+                messageEl.bind("keyup", function (e) {
+                    if (e.keyCode == "13") {
+                        sendMessage(e);
+                    }
+                });
+            }
+            Talk.users();
+            $("#message").focus();
+        },
+
+        // A user left the room
+        leave: function(data) {
+            var message = data.name+" left the channel.";
+            var leftSpan = $("<span class='left'>"+message+"</span>");
+            Talk.addEntry(leftSpan);
+            Talk.users();
+        },
+
+        // Your submitted name was invalid
+        invalidName: function(data) {
+            Talk.name(data.message+"\nTry again:");
+        },
+
+        // There was an error processing the response
+        error: function(data) {
+            var message = "ERROR: "+data.message;
+            var errorSpan = $("<span class='error'>"+message+"</span>");
+            Talk.addEntry(errorSpan);
+        },
+
+        // Returning a list of users
+        users: function(data) {
+            var users = $("#users");
+            users.empty();
+            for (var i=0; i<data.users.length; i++) {
+                var user = data.users[i];
+                var li = $("<li class='"+user.status+"'></li>");
+                li.attr("id", "user-"+user.name);
+                if (user.name == Talk.username)
+                    li.addClass("you");
+                li.unbind("click");
+                li.text(user.name);
+                users.append(li);
+            }
+        }
+
+    },
+
+    // Add a chat entry, whether message, notification, etc.
+    addEntry: function(childNode) {
+        var li = $("<li class='entry'></li>");
+        li.append(childNode);
+        var chat = $("#chat");
+        while(chat.children().length > Talk.MAXMESSAGES) {
+            $(chat.children()[0]).remove();
+        }
+        chat.append(li);
+        var chatRaw = document.getElementById("chat");
+        chatRaw.scrollTop = chatRaw.scrollHeight;
+        return li;
+    },
+
+    // Set up the Talk object.
+    init: function(options) {
+        Talk.socket = io.connect('http://localhost');
+        Talk.socket.on("connect", Talk.connect);
+        Talk.socket.on("message", Talk.receive);
+        Talk.socket.on("disconnect", Talk.disconnect);
+        window.onbeforeunload = Talk.quit;
+    }
+
+};
+</script>
+<style>
+body,input,textarea {
+	font-family: "Verdana", "sans-serif";
+}
+
+body {
+	background-color: #000;
+	width: 800px;
+	margin: 0 auto;
+}
+
+h1 {
+	font-size: 48px;
+	text-align: center;
+	line-height: 56px;
+	letter-spacing: 0;
+	font-weight: normal;
+	margin: 50px 0 10px;
+	padding: 0;
+	color: #FFF;
+	text-shadow: 1px -2px 2px rgba(0, 0, 0, 0.3);
+}
+
+body.create h1 {
+	margin-top: 100px;
+	margin-bottom: 10px;
+}
+
+#chat,#users {
+	background: rgba(255, 255, 255, 0.5);
+}
+
+#chat {
+	border-radius: 10px 0 0 10px;
+	width: 600px;
+	height: 250px;
+	list-style: none;
+	padding: 5px;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	float: left;
+}
+
+#chat li {
+	padding: 3px 5px;
+}
+
+#chat li .join,#chat li .left,#chat li .away {
+	color: rgba(255, 255, 255, 0.6);
+}
+
+#chat li.you {
+	background-color: rgba(255, 255, 255, 0.3);
+}
+
+#chat li .left {
+	font-style: italic;
+}
+
+#chat li .away {
+	font-style: italic;
+}
+
+#chat li .error {
+	color: #C00;
+}
+
+#users {
+	float: left;
+	height: 250px;
+	width: 150px;
+	padding: 5px;
+	border-radius: 0 10px 10px 0;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	list-style: none;
+}
+
+#users li {
+	padding: 3px 5px;
+	font-size: 12px;
+}
+
+#users li.away {
+	font-style: italic;
+}
+
+#users li.you {
+	font-weight: bold;
+}
+
+input#message {
+	padding: 5px 7px;
+	border: 1px solid #000;
+	font-size: 16px;
+	border-radius: 6px;
+	border: 0;
+	outline: 0;
+	background: rgba(255, 255, 255, 0.5);
+	color: #000;
+	width: 400px;
+}
+
+.message-bar button {
+	width: 155px;
+	background: #145;
+	color: #FFF;
+	display: inline-block;
+	border: 0;
+	outline: 0;
+	font-size: 16px;
+	border-radius: 6px;
+	padding: 6px 0;
+	margin: 0 10px 0 10px;
+	border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.clear {
+	clear: both;
+}
+</style>
+</head>
+
+<body>
+	<h1>Node.js Chat</h1>
+	<ul id="chat"></ul>
+	<ul id="users"></ul>
+	<div class="clear"></div>
+	<div class="message-bar">
+		<span id="recipient"></span> <input id="message" type="text"
+			name="message" />
+		<button id="send">Send</button>
+	</div>
+
+	<script type="text/javascript">
+    $(function() {
+      Talk.init();
+    });
+  </script>
+</body>
+</html>
