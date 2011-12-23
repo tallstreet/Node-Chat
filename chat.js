@@ -33,14 +33,11 @@ User.prototype = {
   },
 
   send : function(data) {
-    this.client.send(data);
-  },
-
-  // Send a message to a single user
-  sendMessage : function(data) {
     var msg = JSON.stringify(data);
-    this.send(msg);
-  }
+    this.client.send(msg);
+  }, 
+  
+
 };
 
 exports.User = User;
@@ -89,11 +86,10 @@ Room.prototype = {
 
   // Send a message to all users in this list
   sendToAll : function(data) {
-    var msg = JSON.stringify(data);
     var users = this.allUsers();
     for ( var i = 0; i < users.length; i++) {
       user = users[i];
-      user.send(msg);
+      user.send(data);
     }
   }
 
@@ -121,7 +117,7 @@ var Commands = {
       message : message,
       command : "error"
     };
-    user.sendMessage(data);
+    user.send(data);
   },
 
   // A user requested an invalid name
@@ -131,7 +127,7 @@ var Commands = {
       name : user.name,
       message : message
     };
-    user.sendMessage(data);
+    user.send(data);
   },
 
   // A user has 'joined' a room (valid name)
@@ -172,7 +168,7 @@ var Commands = {
       command : "users",
       users : userData
     }
-    user.sendMessage(data);
+    user.send(data);
   },
 
   // The request commands (from a user)
