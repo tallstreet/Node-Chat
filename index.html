@@ -78,14 +78,6 @@ var Talk = {
     // The server response commands
     commands: {
         
-        // A user is inactive
-        away: function(data) {
-            var awaySpan = $("<span class='away'></span>");
-            awaySpan.text(data.name+" is away.");
-            Talk.addEntry(awaySpan);
-            Talk.users();
-        },
-
         // A user broadcasted the room
         broadcast: function(data) {
             var prefix = data.name;
@@ -96,7 +88,6 @@ var Talk = {
             if (data.message.search(new RegExp(Talk.username, 'i'), "") >= 0)
                 li.addClass("you");
             var uel = $("#user-"+data.name);
-            uel.removeClass("away");
             uel.addClass("active");
         },
 
@@ -238,7 +229,7 @@ body.create h1 {
 	padding: 3px 5px;
 }
 
-#chat li .join,#chat li .left,#chat li .away {
+#chat li .join,#chat li .left {
 	color: rgba(255, 255, 255, 0.6);
 }
 
@@ -247,10 +238,6 @@ body.create h1 {
 }
 
 #chat li .left {
-	font-style: italic;
-}
-
-#chat li .away {
 	font-style: italic;
 }
 
@@ -272,10 +259,6 @@ body.create h1 {
 #users li {
 	padding: 3px 5px;
 	font-size: 12px;
-}
-
-#users li.away {
-	font-style: italic;
 }
 
 #users li.you {
