@@ -2,8 +2,19 @@ var vows = require('vows'), assert = require('assert');
 
 var chat = require('../chat');
 
-var User = chat.User, Room = chat.Room;
+var User = chat.User, Room = chat.Room, Commands = chat.Commands;
 
+var MockSocket = function() {
+    this.data = null;
+}
+ 
+MockSocket.prototype = {
+    send: function  (data) {
+      this.data = data;
+    }
+};
+
+var client = new MockSocket();
 vows.describe('Chat').addBatch({
   'A username' : {
     topic : function() {
@@ -95,6 +106,59 @@ vows.describe('Chat').addBatch({
       assert.deepEqual(result.room.allUsers(), [user1, user2]);
       result.room.removeUser(user1);
       assert.deepEqual(result.room.allUsers(), [user2]);
+    }
+  }, 
+  'A command' : {
+    topic : function() {
+      var user = new User(client);
+      var room = new Room();
+      return {
+        user : user,
+        room : room
+      };
+    },
+    'bad command gives error' : function(result) {
+      Commands.parse(result.user, result.room, {command: "badcommand"});
+      assert.deepEqual(JSON.parse(client.data), {name:null,message:"Unknown command: badcommand",command:"error"});
+    },
+    'can\'t send without name' : function(result) {
+      Commands.parse(result.user, result.room, {command: "chat", message: "test"});
+      assert.deepEqual(JSON.parse(client.data), {name:null,message:"Unknown command: badcommand",command:"error"});
+    },
+    'bad send sends' : function(result) {
+      Commands.parse(result.user, result.room, {command: "name", name: "abcde"});
+      assert.deepEqual(JSON.parse(client.data), { command: 'join', name: 'abcde' });
+    },
+    'can chat' : function(result) {
+      Commands.parse(result.user, result.room, {command: "chat", message: "test"});
+      assert.deepEqual(JSON.parse(client.data), {name:"abcde",message:"test",command:"broadcast"});
+    },
+    'new users can join' : function(result) {
+      var client2 = new MockSocket();
+      var user2 = new User(client2);
+      Commands.parse(user2, result.room, {command: "name", name: "abcdef"});
+      assert.deepEqual(JSON.parse(client.data), { command: 'join', name: 'abcdef' });
+      assert.deepEqual(JSON.parse(client2.data), { command: 'join', name: 'abcdef' });
+    },
+    'new users can join and chat' : function(result) {
+      var client2 = new MockSocket();
+      var user2 = new User(client2);
+      Commands.parse(user2, result.room, {command: "name", name: "abcdefg"});
+      assert.deepEqual(JSON.parse(client.data), { command: 'join', name: 'abcdefg' });
+      assert.deepEqual(JSON.parse(client2.data), { command: 'join', name: 'abcdefg' });
+      Commands.parse(result.user, result.room, {command: "chat", message: "test2"});
+      assert.deepEqual(JSON.parse(client.data), {name:"abcde",message:"test2",command:"broadcast"});
+      assert.deepEqual(JSON.parse(client2.data), {name:"abcde",message:"test2",command:"broadcast"});
+      Commands.parse(user2, result.room, {command: "chat", message: "test3"});
+      assert.deepEqual(JSON.parse(client.data), {name:"abcdefg",message:"test3",command:"broadcast"});
+      assert.deepEqual(JSON.parse(client2.data), {name:"abcdefg",message:"test3",command:"broadcast"});
+    },
+    'users can quit' : function(result) {
+      var client2 = new MockSocket();
+      var user2 = new User(client2);
+      Commands.parse(user2, result.room, {command: "name", name: "abcdefgh"});
+      Commands.parse(result.user, result.room, {command: "quit"});
+      assert.deepEqual(JSON.parse(client2.data), { command: 'leave', name: 'abcde' });
     }
   }
 }).export(module); // Export the Suite

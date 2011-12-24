@@ -1,4 +1,4 @@
-// A simple user object
+// Class for representing a user
 var User = function(client) {
   this.name = null;
   this.client = client;
