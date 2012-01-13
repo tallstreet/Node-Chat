@@ -136,7 +136,7 @@ var Commands = {
     data = {
       command : "join",
       name : user.name
-    }
+    };
     room.sendToAll(data);
   },
 
@@ -145,7 +145,7 @@ var Commands = {
     data = {
       command : "leave",
       name : user.name
-    }
+    };
     if (!room) {
       util.log("No room for user?");
       return;
@@ -167,7 +167,7 @@ var Commands = {
     data = {
       command : "users",
       users : userData
-    }
+    };
     user.send(data);
   },
 
